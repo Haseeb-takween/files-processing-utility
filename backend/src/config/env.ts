@@ -8,7 +8,4 @@ export const env = {
   MONGODB_URI: process.env.MONGODB_URI || '',
   JWT_SECRET: process.env.JWT_SECRET || '',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
-  MAX_FILE_SIZE_MB: parseInt(process.env.MAX_FILE_SIZE_MB || '25', 10),
-  TEMP_FILE_TTL_MINUTES: parseInt(process.env.TEMP_FILE_TTL_MINUTES || '30', 10),
-  UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads',
 };

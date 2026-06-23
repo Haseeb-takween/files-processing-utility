@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getExpressApiUrl } from '@/lib/express';
+import { SESSION_COOKIE } from '@/lib/session';
 
 const ALLOWED_TOOLS = ['merge', 'split', 'compress', 'convert', 'pages', 'watermark'];
 
@@ -14,16 +16,15 @@ export async function POST(
   }
 
   const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
 
   if (!token) {
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
   }
 
-  const expressUrl = process.env.EXPRESS_API_URL || 'http://localhost:5000';
   const formData = await request.formData();
 
-  const response = await fetch(`${expressUrl}/api/pdf/${tool}`, {
+  const response = await fetch(`${getExpressApiUrl()}/api/pdf/${tool}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

@@ -26,7 +26,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     await apiRequest('/api/auth/logout', { method: 'POST' });
     setUser(null);
-    router.push('/login');
+    router.push('/');
     router.refresh();
   };
 

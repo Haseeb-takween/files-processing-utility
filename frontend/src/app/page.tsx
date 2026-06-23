@@ -17,7 +17,7 @@ export default function HomePage() {
       >
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">PDF Tools</h1>
         <p className="mt-2 max-w-2xl text-slate-600">
-          Upload, process, and download your documents. All tools require a logged-in account.
+          Browse tools freely. Sign in only when you&apos;re ready to process a file.
         </p>
       </motion.div>
 

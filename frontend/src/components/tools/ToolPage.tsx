@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import ToolLayout from '@/components/tools/ToolLayout';
 import FileUpload from '@/components/tools/FileUpload';
-import { apiRequest } from '@/lib/api';
+import AuthRequiredToast from '@/components/tools/AuthRequiredToast';
+import { apiRequest, ApiRequestError } from '@/lib/api';
+import { AuthMeResponse } from '@/types';
 
 interface ToolPageProps {
   title: string;
@@ -19,10 +23,23 @@ export default function ToolPage({
   endpoint,
   multiple = false,
 }: ToolPageProps) {
+  const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const [files, setFiles] = useState<FileList | null>(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAuthToast, setShowAuthToast] = useState(false);
+
+  const loginHref = `/login?next=${encodeURIComponent(pathname)}`;
+
+  const checkAuth = async (): Promise<boolean> => {
+    try {
+      await apiRequest<AuthMeResponse>('/api/auth/me');
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const handleProcess = async () => {
     if (!files?.length) {
@@ -30,8 +47,15 @@ export default function ToolPage({
       return;
     }
 
-    setLoading(true);
     setMessage('');
+    const isAuthenticated = await checkAuth();
+
+    if (!isAuthenticated) {
+      setShowAuthToast(true);
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const formData = new FormData();
@@ -44,6 +68,10 @@ export default function ToolPage({
 
       setMessage(response.message || 'Request sent successfully. PDF processing will be implemented next.');
     } catch (err) {
+      if (err instanceof ApiRequestError && err.status === 401) {
+        setShowAuthToast(true);
+        return;
+      }
       setMessage(err instanceof Error ? err.message : 'Processing failed');
     } finally {
       setLoading(false);
@@ -51,27 +79,46 @@ export default function ToolPage({
   };
 
   return (
-    <ToolLayout title={title} description={description}>
-      <div className="space-y-4">
-        <FileUpload multiple={multiple} onChange={setFiles} />
-
-        <motion.button
-          type="button"
-          onClick={handleProcess}
-          disabled={loading}
-          whileHover={shouldReduceMotion ? undefined : { scale: loading ? 1 : 1.01 }}
-          whileTap={shouldReduceMotion ? undefined : { scale: loading ? 1 : 0.98 }}
-          className="rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-teal-600/20 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Processing...' : 'Process'}
-        </motion.button>
-
-        {message && (
-          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            {message}
+    <>
+      <ToolLayout title={title} description={description}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Browse freely — sign in or register when you&apos;re ready to process a file.
           </p>
-        )}
-      </div>
-    </ToolLayout>
+
+          <FileUpload multiple={multiple} onChange={setFiles} />
+
+          <motion.button
+            type="button"
+            onClick={handleProcess}
+            disabled={loading}
+            whileHover={shouldReduceMotion ? undefined : { scale: loading ? 1 : 1.01 }}
+            whileTap={shouldReduceMotion ? undefined : { scale: loading ? 1 : 0.98 }}
+            className="rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-teal-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Processing...' : 'Process'}
+          </motion.button>
+
+          {message && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {message}
+            </p>
+          )}
+
+          <p className="text-sm text-slate-500">
+            Need an account?{' '}
+            <Link href="/register" className="font-medium text-teal-700 hover:text-teal-800">
+              Register
+            </Link>
+          </p>
+        </div>
+      </ToolLayout>
+
+      <AuthRequiredToast
+        show={showAuthToast}
+        loginHref={loginHref}
+        onClose={() => setShowAuthToast(false)}
+      />
+    </>
   );
 }

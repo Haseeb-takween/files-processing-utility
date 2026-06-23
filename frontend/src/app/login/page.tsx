@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import AuthLayout from '@/components/auth/AuthLayout';
 import LoginForm from '@/components/auth/LoginForm';
 
@@ -6,7 +7,7 @@ export default function LoginPage() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to access the internal PDF processing tools."
+      subtitle="Sign in to process your files."
       footer={
         <>
           Don&apos;t have an account?{' '}
@@ -16,7 +17,9 @@ export default function LoginPage() {
         </>
       }
     >
-      <LoginForm />
+      <Suspense fallback={<p className="text-sm text-slate-600">Loading...</p>}>
+        <LoginForm />
+      </Suspense>
     </AuthLayout>
   );
 }

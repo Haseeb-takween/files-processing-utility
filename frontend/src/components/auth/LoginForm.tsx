@@ -1,12 +1,13 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const shouldReduceMotion = useReducedMotion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +24,9 @@ export default function LoginForm() {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      router.push('/');
+
+      const next = searchParams.get('next');
+      router.push(next?.startsWith('/') ? next : '/');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

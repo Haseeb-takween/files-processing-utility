@@ -13,10 +13,8 @@ export default function Navbar() {
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
-    if (isAuthPage) {
-      setUser(null);
-      return;
-    }
+    // Auth pages render nothing, so there's no need to sync user state there.
+    if (isAuthPage) return;
 
     apiRequest<AuthMeResponse>('/api/auth/me')
       .then((data) => setUser(data.user))
@@ -45,6 +43,9 @@ export default function Navbar() {
         <nav className="flex items-center gap-3 text-sm">
           {user ? (
             <>
+              <Link href="/usage" className="text-slate-700 hover:text-slate-900">
+                Usage
+              </Link>
               <span className="hidden text-slate-600 sm:inline">{user.name}</span>
               <button
                 type="button"

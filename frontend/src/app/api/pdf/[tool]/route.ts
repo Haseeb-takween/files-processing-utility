@@ -40,8 +40,21 @@ export async function POST(
     return NextResponse.json(json, { status: response.status });
   }
 
+  // Binary download: pass through the filename so the browser saves it correctly.
+  const headers: Record<string, string> = { 'Content-Type': contentType };
+  const disposition = response.headers.get('content-disposition');
+  if (disposition) {
+    headers['Content-Disposition'] = disposition;
+  }
+  // Forward tool metadata headers (e.g. compression stats) to the browser.
+  response.headers.forEach((value, key) => {
+    if (key.toLowerCase().startsWith('x-')) {
+      headers[key] = value;
+    }
+  });
+
   return new NextResponse(body, {
     status: response.status,
-    headers: { 'Content-Type': contentType },
+    headers,
   });
 }

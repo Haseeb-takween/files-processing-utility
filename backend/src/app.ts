@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env';
 import authRoutes from './routes/auth.routes';
+import pdfRoutes from './routes/pdf.routes';
+import usageRoutes from './routes/usage.routes';
 import { apiLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -26,6 +28,8 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/usage', usageRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -21,3 +21,17 @@ export interface ToolInfo {
   description: string;
   href: string;
 }
+
+export interface UsageLogEntry {
+  _id: string;
+  tool: PdfTool;
+  originalFileName: string;
+  fileCount: number;
+  createdAt: string;
+}
+
+export interface UsageSummary {
+  total: number;
+  byTool: Partial<Record<PdfTool, number>>;
+  logs: UsageLogEntry[];
+}

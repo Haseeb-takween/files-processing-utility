@@ -1,0 +1,121 @@
+'use client';
+
+import { motion, useReducedMotion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { FormEvent, useState } from 'react';
+import { apiRequest } from '@/lib/api';
+
+export default function RegisterForm() {
+  const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await apiRequest('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password, confirmPassword }),
+      });
+      router.push('/login');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <motion.p
+          initial={shouldReduceMotion ? false : { x: 0 }}
+          animate={shouldReduceMotion ? undefined : { x: [0, -8, 8, -6, 6, 0] }}
+          transition={{ duration: 0.4 }}
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {error}
+        </motion.p>
+      )}
+
+      <div>
+        <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Name
+        </label>
+        <input
+          id="name"
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          required
+          minLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="confirmPassword"
+          className="mb-1.5 block text-sm font-medium text-slate-700"
+        >
+          Confirm password
+        </label>
+        <input
+          id="confirmPassword"
+          type="password"
+          required
+          minLength={6}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+        />
+      </div>
+
+      <motion.button
+        type="submit"
+        disabled={loading}
+        whileHover={shouldReduceMotion ? undefined : { scale: loading ? 1 : 1.01 }}
+        whileTap={shouldReduceMotion ? undefined : { scale: loading ? 1 : 0.98 }}
+        className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-teal-600/20 transition disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loading ? 'Creating account...' : 'Create account'}
+      </motion.button>
+    </form>
+  );
+}

@@ -1,6 +1,20 @@
 import app from './app';
+import { connectDB } from './config/db';
 import { env } from './config/env';
 
-app.listen(env.PORT, () => {
-  console.log(`Server running on http://localhost:${env.PORT}`);
+const startServer = async (): Promise<void> => {
+  if (!env.MONGODB_URI || !env.JWT_SECRET) {
+    throw new Error('MONGODB_URI and JWT_SECRET must be set in environment');
+  }
+
+  await connectDB();
+
+  app.listen(env.PORT, () => {
+    console.log(`Server running on http://localhost:${env.PORT}`);
+  });
+};
+
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });

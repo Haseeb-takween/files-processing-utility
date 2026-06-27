@@ -1,10 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { ExpressFetchError, fetchExpress } from '@/lib/express';
+import {
+  ExpressFetchError,
+  EXPRESS_PDF_TIMEOUT_MS,
+  fetchExpress,
+  wakeExpressBackend,
+} from '@/lib/express';
 import { getFriendlyApiError } from '@/lib/errors';
 import { SESSION_COOKIE } from '@/lib/session';
 
 const ALLOWED_TOOLS = ['merge', 'split', 'compress', 'convert', 'pages', 'watermark'];
+const RETRY_DELAY_MS = 8000;
+const MAX_ATTEMPTS = 2;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function buildFormData(entries: [string, FormDataEntryValue][]): FormData {
+  const fd = new FormData();
+  for (const [key, value] of entries) {
+    fd.append(key, value);
+  }
+  return fd;
+}
+
+async function proxyPdfToExpress(
+  tool: string,
+  token: string,
+  entries: [string, FormDataEntryValue][]
+): Promise<Response> {
+  await wakeExpressBackend();
+
+  return fetchExpress(
+    `/api/pdf/${tool}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: buildFormData(entries),
+    },
+    EXPRESS_PDF_TIMEOUT_MS
+  );
+}
 
 export async function POST(
   request: NextRequest,
@@ -23,16 +58,35 @@ export async function POST(
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
   }
 
-  const formData = await request.formData();
+  const incoming = await request.formData();
+  const entries: [string, FormDataEntryValue][] = [];
+  for (const entry of incoming.entries()) {
+    entries.push(entry);
+  }
 
   try {
-    const response = await fetchExpress(`/api/pdf/${tool}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    let response: Response | null = null;
+    let lastError: ExpressFetchError | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        if (attempt > 1) {
+          await sleep(RETRY_DELAY_MS);
+        }
+        response = await proxyPdfToExpress(tool, token, entries);
+        break;
+      } catch (err) {
+        if (err instanceof ExpressFetchError) {
+          lastError = err;
+          if (attempt < MAX_ATTEMPTS) continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!response) {
+      throw lastError ?? new ExpressFetchError(503, 'Could not reach the processing server.');
+    }
 
     const contentType = response.headers.get('content-type') || 'application/json';
     const body = await response.arrayBuffer();
@@ -55,13 +109,11 @@ export async function POST(
       );
     }
 
-    // Binary download: pass through the filename so the browser saves it correctly.
     const headers: Record<string, string> = { 'Content-Type': contentType };
     const disposition = response.headers.get('content-disposition');
     if (disposition) {
       headers['Content-Disposition'] = disposition;
     }
-    // Forward tool metadata headers (e.g. compression stats) to the browser.
     response.headers.forEach((value, key) => {
       if (key.toLowerCase().startsWith('x-')) {
         headers[key] = value;

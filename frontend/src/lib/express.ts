@@ -2,8 +2,14 @@ export function getExpressApiUrl(): string {
   return process.env.EXPRESS_API_URL || 'http://localhost:5000';
 }
 
-/** Long timeout for PDF uploads — covers Render cold start + processing. */
-export const EXPRESS_FETCH_TIMEOUT_MS = 120_000;
+/** Health ping — keep short so Render returns JSON before its ~30s gateway limit. */
+export const EXPRESS_HEALTH_TIMEOUT_MS = 20_000;
+
+/** PDF upload + processing — used after backend is confirmed awake. */
+export const EXPRESS_PDF_TIMEOUT_MS = 90_000;
+
+/** Default for JSON auth/usage routes. */
+export const EXPRESS_FETCH_TIMEOUT_MS = 30_000;
 
 export class ExpressFetchError extends Error {
   statusCode: number;
@@ -61,5 +67,16 @@ export async function fetchExpress(
     );
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Ping Express /health to wake a sleeping Render backend before heavy work. */
+export async function wakeExpressBackend(): Promise<void> {
+  const response = await fetchExpress('/health', { method: 'GET' }, EXPRESS_HEALTH_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new ExpressFetchError(
+      503,
+      'Our processing server is waking up. Please wait about a minute and try again.'
+    );
   }
 }

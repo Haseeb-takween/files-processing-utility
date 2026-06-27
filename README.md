@@ -150,3 +150,39 @@ The script reports success/failure counts, HTTP status codes, throughput, and la
 **Before load testing a deployed server**, ensure `RATE_LIMIT_MAX` is high enough to avoid 429 responses from the rate limiter.
 
 Run this against your **deployed** backend and record the results (and a Loom video) for your submission.
+
+## Deploy on Render (two services required)
+
+PDF processing needs **two** Render Web Services — frontend and backend are separate apps.
+
+### 1. Backend service (Express)
+
+- Root directory: `backend`
+- Build: `npm install && npm run build`
+- Start: `npm start`
+- Env vars:
+  - `MONGODB_URI` — your Atlas connection string
+  - `JWT_SECRET` — same value as frontend
+  - `FRONTEND_URL` — `https://your-frontend.onrender.com`
+  - `MAX_FILE_SIZE_MB`, `FILE_TTL_MINUTES`, etc. (see `.env.example`)
+
+Health check URL: `https://your-backend.onrender.com/health`
+
+### 2. Frontend service (Next.js)
+
+- Root directory: `frontend`
+- Build: `npm install && npm run build`
+- Start: `npm start`
+- Env vars:
+  - `JWT_SECRET` — must match backend
+  - `EXPRESS_API_URL` — **`https://your-backend.onrender.com`** (not localhost)
+
+### Common production errors
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| **502 Bad Gateway** on `/api/pdf/*` | Backend asleep, wrong `EXPRESS_API_URL`, or only frontend deployed | Deploy backend; set `EXPRESS_API_URL`; open backend `/health` once, then retry |
+| Works locally, fails on Render | Local uses `localhost:5000`; Render needs public backend URL | Set `EXPRESS_API_URL` on frontend Render env |
+| First request fails, second works | Render free tier cold start (~30–60s) | Wait and click Process again, or visit backend `/health` first |
+
+On Render free tier, the backend **spins down after ~15 minutes idle**. The app pings `/health` before processing and shows a friendly message if the server is still waking up.

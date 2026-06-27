@@ -22,6 +22,10 @@ const RETRY_DELAY_MS = 5000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function parseErrorResponse(response: Response): Promise<string> {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return getFriendlyApiError(response.status);
+  }
   try {
     const data = (await response.json()) as ApiErrorBody;
     return getFriendlyApiError(response.status, data);

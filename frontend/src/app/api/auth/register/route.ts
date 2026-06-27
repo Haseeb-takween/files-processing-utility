@@ -27,6 +27,9 @@ export async function POST(req: Request) {
     return NextResponse.json(data, { status });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Unable to reach API server' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Unable to reach API server', message: 'Unable to reach API server' },
+      { status: 503 }
+    );
   }
 }

@@ -8,7 +8,27 @@ import ToolLayout from '@/components/tools/ToolLayout';
 import FileUpload from '@/components/tools/FileUpload';
 import AuthRequiredToast from '@/components/tools/AuthRequiredToast';
 import { apiRequest } from '@/lib/api';
+import {
+  ApiErrorBody,
+  getFriendlyApiError,
+  isRetryableStatus,
+  SERVER_WAKE_MESSAGE,
+} from '@/lib/errors';
 import { AuthMeResponse } from '@/types';
+
+const MAX_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 5000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function parseErrorResponse(response: Response): Promise<string> {
+  try {
+    const data = (await response.json()) as ApiErrorBody;
+    return getFriendlyApiError(response.status, data);
+  } catch {
+    return getFriendlyApiError(response.status);
+  }
+}
 
 export interface ToolField {
   name: string;
@@ -54,7 +74,9 @@ export default function ToolPage({
     Object.fromEntries(fields.map((f) => [f.name, f.defaultValue ?? '']))
   );
   const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingHint, setLoadingHint] = useState('');
   const [showAuthToast, setShowAuthToast] = useState(false);
 
   const loginHref = `/login?next=${encodeURIComponent(pathname)}`;
@@ -83,6 +105,7 @@ export default function ToolPage({
     }
 
     setMessage('');
+    setIsError(false);
     const isAuthenticated = await checkAuth();
 
     if (!isAuthenticated) {
@@ -91,31 +114,56 @@ export default function ToolPage({
     }
 
     setLoading(true);
+    setLoadingHint('Processing your file…');
 
     try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => formData.append('files', file));
-      fields.forEach((f) => formData.append(f.name, fieldValues[f.name] ?? ''));
+      const buildFormData = () => {
+        const fd = new FormData();
+        Array.from(files!).forEach((file) => fd.append('files', file));
+        fields.forEach((f) => fd.append(f.name, fieldValues[f.name] ?? ''));
+        return fd;
+      };
 
-      const response = await fetch(`/api/pdf/${endpoint}`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin',
-      });
+      let response: Response | null = null;
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        if (attempt > 1) {
+          setLoadingHint(
+            `Server may be waking up — retrying (${attempt} of ${MAX_ATTEMPTS})…`
+          );
+          await sleep(RETRY_DELAY_MS);
+        } else {
+          setLoadingHint(`Processing your file… ${SERVER_WAKE_MESSAGE}`);
+        }
+
+        response = await fetch(`/api/pdf/${endpoint}`, {
+          method: 'POST',
+          body: buildFormData(),
+          credentials: 'same-origin',
+        });
+
+        if (response.ok || response.status === 401 || !isRetryableStatus(response.status)) {
+          break;
+        }
+
+        if (attempt < MAX_ATTEMPTS) {
+          continue;
+        }
+      }
+
+      if (!response) {
+        setIsError(true);
+        setMessage('Processing failed. Please try again.');
+        return;
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
           setShowAuthToast(true);
           return;
         }
-        let errorMessage = 'Processing failed. Please try again.';
-        try {
-          const data = await response.json();
-          if (data?.message) errorMessage = data.message;
-        } catch {
-          // non-JSON error body; keep the default message
-        }
-        setMessage(errorMessage);
+        setIsError(true);
+        setMessage(await parseErrorResponse(response));
         return;
       }
 
@@ -135,6 +183,7 @@ export default function ToolPage({
 
       const original = Number(response.headers.get('X-Original-Size'));
       const result = Number(response.headers.get('X-Compressed-Size'));
+      setIsError(false);
       if (original > 0 && result > 0) {
         const pct = Math.max(0, Math.round((1 - result / original) * 100));
         setMessage(
@@ -146,9 +195,21 @@ export default function ToolPage({
         setMessage(`Done. Downloaded "${filename}".`);
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Processing failed');
+      setIsError(true);
+      const isNetwork =
+        err instanceof TypeError ||
+        (err instanceof Error &&
+          /fetch|network|failed/i.test(err.message));
+      setMessage(
+        isNetwork
+          ? 'Cannot reach the server. It may be waking up or restarting — please wait a moment and try again.'
+          : err instanceof Error
+            ? err.message
+            : 'Processing failed. Please try again.'
+      );
     } finally {
       setLoading(false);
+      setLoadingHint('');
     }
   };
 
@@ -214,11 +275,23 @@ export default function ToolPage({
             whileTap={shouldReduceMotion ? undefined : { scale: loading ? 1 : 0.98 }}
             className="rounded-xl bg-gradient-to-r from-teal-600 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-teal-600/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? 'Processing...' : 'Process'}
+            {loading ? 'Processing…' : 'Process'}
           </motion.button>
 
-          {message && (
-            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          {loading && loadingHint && (
+            <p className="rounded-xl border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-800">
+              {loadingHint}
+            </p>
+          )}
+
+          {message && !loading && (
+            <p
+              className={`rounded-xl border px-3 py-2 text-sm ${
+                isError
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              }`}
+            >
               {message}
             </p>
           )}

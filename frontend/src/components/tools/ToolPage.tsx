@@ -1,13 +1,13 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import ToolLayout from '@/components/tools/ToolLayout';
 import FileUpload from '@/components/tools/FileUpload';
 import AuthRequiredToast from '@/components/tools/AuthRequiredToast';
 import { apiRequest } from '@/lib/api';
+import { validateFileSizes } from '@/lib/config';
 import {
   ApiErrorBody,
   getFriendlyApiError,
@@ -85,6 +85,15 @@ export default function ToolPage({
 
   const loginHref = `/login?next=${encodeURIComponent(pathname)}`;
 
+  // Validate size as soon as files are picked, so the user gets feedback
+  // immediately instead of after a wasted upload.
+  const handleFilesChange = (selected: FileList | null) => {
+    setFiles(selected);
+    const sizeError = validateFileSizes(selected);
+    setIsError(Boolean(sizeError));
+    setMessage(sizeError);
+  };
+
   const checkAuth = async (): Promise<boolean> => {
     try {
       await apiRequest<AuthMeResponse>('/api/auth/me');
@@ -97,6 +106,14 @@ export default function ToolPage({
   const handleProcess = async () => {
     if (!files?.length) {
       setMessage('Please select a file first.');
+      return;
+    }
+
+    // Guard against oversized files before uploading (mirrors the backend limit).
+    const sizeError = validateFileSizes(files);
+    if (sizeError) {
+      setIsError(true);
+      setMessage(sizeError);
       return;
     }
 
@@ -221,11 +238,7 @@ export default function ToolPage({
     <>
       <ToolLayout title={title} description={description}>
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
-            Browse freely — sign in or register when you&apos;re ready to process a file.
-          </p>
-
-          <FileUpload multiple={multiple} accept={accept} onChange={setFiles} />
+          <FileUpload multiple={multiple} accept={accept} onChange={handleFilesChange} />
 
           {fields.map((field) => (
             <div key={field.name}>
@@ -299,13 +312,6 @@ export default function ToolPage({
               {message}
             </p>
           )}
-
-          <p className="text-sm text-slate-500">
-            Need an account?{' '}
-            <Link href="/register" className="font-medium text-teal-700 hover:text-teal-800">
-              Register
-            </Link>
-          </p>
         </div>
       </ToolLayout>
 

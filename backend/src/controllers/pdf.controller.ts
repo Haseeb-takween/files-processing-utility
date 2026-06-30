@@ -42,7 +42,21 @@ export const process = asyncHandler(async (req: AuthRequest, res: Response) => {
       throw new AppError('No files were uploaded.', 400);
     }
 
-    const result = await handler(files, req.body ?? {});
+    // Handlers throw AppError with specific messages for known problems
+    // (corrupt, encrypted, wrong type…). Any *other* error here means a
+    // malformed file slipped past the initial parse and broke a pdf-lib op —
+    // turn that into a clear, file-specific message instead of a generic 500.
+    let result;
+    try {
+      result = await handler(files, req.body ?? {});
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      console.error(`Processing failed for tool "${tool}":`, err);
+      throw new AppError(
+        'This file could not be processed. Please check you are uploading a valid, uncorrupted PDF (or image) and try again.',
+        422
+      );
+    }
 
     // Log usage only after successful processing.
     await logUsage(

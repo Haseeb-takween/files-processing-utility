@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
-import { SESSION_COOKIE } from '@/lib/session';
+import { SESSION_COOKIE, clearAuthCookie } from '@/lib/session';
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -21,6 +21,10 @@ export async function GET() {
       user: { name: decoded.name, email: decoded.email },
     });
   } catch {
-    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    // Token is present but invalid/expired. Clear it so the stale cookie can't
+    // trap the user (navbar shows "logged out" yet the cookie blocks login).
+    const response = NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    clearAuthCookie(response);
+    return response;
   }
 }

@@ -1,0 +1,81 @@
+# Render blueprint for the File Processing Utility.
+#
+# Two web services from one repo:
+#   - file-processing-api  (Express backend, ./backend)
+#   - file-processing-web  (Next.js frontend, ./frontend)
+#
+# Deploy: push this file, then in Render → "New" → "Blueprint" and point it at
+# this repo. Render becomes the process supervisor (it restarts the process on
+# crash or OOM), which is why there is no PM2 here.
+#
+# After the first deploy, fill in the env vars marked `sync: false` in the
+# Render dashboard (see comments below) and trigger a redeploy.
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API (Express)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: file-processing-api
+    runtime: node
+    rootDir: backend
+    # Starter = 512 MB RAM. PDF rendering buffers files in memory, so bump this
+    # to `standard` (2 GB) or higher if users upload large/multi-page PDFs —
+    # otherwise Render will OOM-restart the process under load.
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    # Render restarts the instance if this stops returning 200 (route exists in app.ts).
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT automatically; env.ts already reads process.env.PORT.
+      - key: MONGODB_URI
+        sync: false # paste your MongoDB Atlas connection string in the dashboard
+      - key: FRONTEND_URL
+        sync: false # set to the frontend's https URL, e.g. https://file-processing-web.onrender.com
+      - key: MAX_FILE_SIZE_MB
+        value: "15"
+      - key: FILE_TTL_MINUTES
+        value: "30"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX
+        value: "1000"
+      # Shared JWT secret — must match the frontend (it verifies tokens itself).
+      - fromGroup: file-processing-shared
+
+  # ---------------------------------------------------------------------------
+  # Frontend (Next.js)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: file-processing-web
+    runtime: node
+    rootDir: frontend
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Server-side only (not exposed to the browser). Point at the backend URL.
+      - key: EXPRESS_API_URL
+        sync: false # set to the backend's https URL, e.g. https://file-processing-api.onrender.com
+      # Client-side upload limit — must equal the backend's MAX_FILE_SIZE_MB above.
+      - key: NEXT_PUBLIC_MAX_FILE_SIZE_MB
+        value: "15"
+      # Same shared JWT secret as the backend.
+      - fromGroup: file-processing-shared
+
+# -----------------------------------------------------------------------------
+# Shared env group: one generated JWT_SECRET delivered to BOTH services so the
+# backend (signs) and frontend (verifies) agree. Render generates it once.
+# -----------------------------------------------------------------------------
+envVarGroups:
+  - name: file-processing-shared
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true

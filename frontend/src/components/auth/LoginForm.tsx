@@ -1,12 +1,11 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const shouldReduceMotion = useReducedMotion();
   const [email, setEmail] = useState('');
@@ -26,8 +25,11 @@ export default function LoginForm() {
       });
 
       const next = searchParams.get('next');
-      router.push(next?.startsWith('/') ? next : '/');
-      router.refresh();
+      const dest = next?.startsWith('/') ? next : '/';
+      // Hard navigation (not router.push) so the middleware re-runs with the
+      // freshly-set auth cookie. A soft navigation would reuse the prefetched
+      // logged-out redirect cached for /tools/* and bounce back to /login.
+      window.location.assign(dest);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
